@@ -58,16 +58,34 @@ class ApiClient:
             self._log(f"POST /session/start failed: {exc}", RED)
             return None
 
-    def end_session(self) -> None:
+    def end_session(self) -> Optional[Any]:
         if not self.session_id:
-            return
+            return None
         url = f"{self._root}/session/end"
         try:
-            response = self.session.post(url, headers=self._headers | {"SESSION-ID": self.session_id}, timeout=self.timeout)
+            response = self.session.post(
+                url, headers=self._headers | {"SESSION-ID": self.session_id}, timeout=self.timeout
+            )
             response.raise_for_status()
+            payload = self._parse_payload(response)
             self._log(f"[POST] /session/end -> {response.status_code}", GREEN)
+            if payload is not None:
+                try:
+                    pretty = json.dumps(payload, indent=2)
+                except Exception:
+                    pretty = str(payload)
+                self._log(pretty, GREEN)
+            return payload
+        except requests.HTTPError as exc:
+            resp = exc.response
+            payload = self._parse_payload(resp)
+            self._log(f"POST /session/end failed: {exc}", YELLOW)
+            if payload is not None:
+                self._log(str(payload), YELLOW)
+            return payload
         except Exception as exc:
             self._log(f"POST /session/end failed: {exc}", YELLOW)
+            return None
 
     def play_round(self, day: int, hour: int, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not self.session_id:
@@ -89,3 +107,15 @@ class ApiClient:
         except Exception as exc:
             self._log(f"POST /play/round failed: {exc}", YELLOW)
             return None
+
+    @staticmethod
+    def _parse_payload(response: requests.Response | None) -> Any:
+        if response is None:
+            return None
+        try:
+            return response.json()
+        except Exception:
+            try:
+                return response.text
+            except Exception:
+                return None

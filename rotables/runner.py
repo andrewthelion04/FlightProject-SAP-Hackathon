@@ -62,7 +62,7 @@ class SessionRunner:
             print("Failed to start session; aborting run.")
             return
         global_hour = to_global_hour(self.current_day, self.current_hour)
-        while global_hour <= max_global_hour:
+        while global_hour < max_global_hour:
             self.step()
             global_hour = to_global_hour(self.current_day, self.current_hour)
         self.end_session()
