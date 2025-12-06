@@ -1,0 +1,16 @@
+"""Domain models for rotables optimization."""
+
+from .kit_types import KitType
+from .penalties import (
+    EARLY_END_OF_GAME,
+    END_OF_GAME_PENDING_KIT_PROCESSING,
+    END_OF_GAME_REMAINING_STOCK,
+    END_OF_GAME_UNFULFILLED_FLIGHT_KITS,
+    FLIGHT_OVERLOAD_FACTOR_PER_DISTANCE,
+    INCORRECT_FLIGHT_LOAD,
+    NEGATIVE_INVENTORY,
+    OVER_CAPACITY_STOCK,
+    UNFULFILLED_KIT_FACTOR_PER_DISTANCE,
+)
+
+__all__ = ["KitType"]

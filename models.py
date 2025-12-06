@@ -17,6 +17,15 @@ def _safe_int(value, default: Optional[int] = 0) -> Optional[int]:
         return default
 
 
+def _safe_float(value, default: Optional[float] = None) -> Optional[float]:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 @dataclass
 class Airport:
     code: str
@@ -71,6 +80,8 @@ class Flight:
     scheduled_day: Optional[int] = None
     scheduled_hour: Optional[int] = None
     aircraft_type: Optional[str] = None
+    planned_distance: Optional[float] = None
+    actual_distance: Optional[float] = None
 
     @classmethod
     def from_json(cls, data: Dict) -> Optional["Flight"]:
@@ -123,6 +134,18 @@ class Flight:
         )
         aircraft_type = data.get("aircraftType") or data.get("aircraft")
 
+        scheduled_distance = _safe_float(
+            grab(["scheduledDistance", "plannedDistance", "distance"], data, None), None
+        )
+        actual_distance = _safe_float(grab(["actualDistance", "actual_distance"], data, None), None)
+
+        # API contract: distance is scheduled for SCHEDULED/CHECKED-IN and actual for LANDED.
+        distance_value = _safe_float(data.get("distance"), None)
+        if status == "LANDED":
+            actual_distance = actual_distance if actual_distance is not None else distance_value
+        else:
+            scheduled_distance = scheduled_distance if scheduled_distance is not None else distance_value
+
         return cls(
             id=str(flight_id),
             flight_number=str(flight_number),
@@ -133,4 +156,6 @@ class Flight:
             scheduled_day=_safe_int(scheduled_day, None) if scheduled_day is not None else None,
             scheduled_hour=_safe_int(scheduled_hour, None) if scheduled_hour is not None else None,
             aircraft_type=aircraft_type,
+            planned_distance=scheduled_distance,
+            actual_distance=actual_distance,
         )

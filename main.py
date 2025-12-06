@@ -10,6 +10,8 @@ import pandas as pd
 from client import ApiClient
 from config import BUFFER_PASSENGERS, CARGO_TOPUP, CSV_DELIMITER, MIN_STOCK_THRESHOLD
 from models import Airport, Flight, CLASS_KEYS
+from rotables.runner import SessionRunner
+from rotables.strategy.baseline import BaselineStrategy
 
 # Constants and defaults
 HUB_CODE = "HUB1"
@@ -370,6 +372,12 @@ def run_game_loop() -> None:
     finally:
         client.end_session()
 
+def run_matrix_baseline() -> None:
+    """Run the new matrix-based runner with the baseline strategy."""
+    strategy = BaselineStrategy()
+    runner = SessionRunner(strategy=strategy)
+    runner.run()
+
 
 if __name__ == "__main__":
-    run_game_loop()
+    run_matrix_baseline()
