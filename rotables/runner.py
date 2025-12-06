@@ -18,7 +18,7 @@ from rotables.models.kit_types import KitType, PASSENGER_KEYS_BY_TYPE
 from rotables.state.matrix_state import MatrixState
 from rotables.state.time_index import MAX_HOUR, from_global_hour, to_global_hour
 from rotables.strategy.base import KitLoadDecision, PurchaseDecision, Strategy
-from rotables.strategy.baseline import BaselineStrategy
+from rotables.strategy.lookahead import LookaheadStrategy
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -35,7 +35,7 @@ class SessionRunner:
         client: Optional[ApiClient] = None,
     ) -> None:
         self.data_dir = data_dir
-        self.strategy: Strategy = strategy or BaselineStrategy()
+        self.strategy: Strategy = strategy or LookaheadStrategy()
         self.client = client or ApiClient()
 
         self.airports: Dict[str, Airport] = load_airports_from_csv(self.data_dir / "airports_with_stocks.csv")
@@ -78,6 +78,7 @@ class SessionRunner:
             current_hour=self.current_hour,
             flights_now=flights_now,
             matrix=self.matrix,
+            all_flights=list(self.flights_by_id.values()),
         )
 
         self._apply_decisions_to_matrix(global_hour, load_decisions, purchase_decisions)

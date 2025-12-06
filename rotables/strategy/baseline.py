@@ -18,6 +18,7 @@ class BaselineStrategy(Strategy):
         current_hour: int,
         flights_now: List[FlightInstance],
         matrix: MatrixState,
+        all_flights: List[FlightInstance],
     ) -> Tuple[List[KitLoadDecision], List[PurchaseDecision]]:
         load_decisions: List[KitLoadDecision] = []
         purchase_decisions: List[PurchaseDecision] = []

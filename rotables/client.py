@@ -24,12 +24,19 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 class ApiClient:
-    def __init__(self, base_url: str = API_BASE_URL, api_key: str = API_KEY, timeout: int = 15) -> None:
+    def __init__(
+        self,
+        base_url: str = API_BASE_URL,
+        api_key: str = API_KEY,
+        timeout: int = 15,
+        verbose: bool = True,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
         self.session = requests.Session()
         self.session_id: Optional[str] = None
+        self.verbose = verbose
 
     @property
     def _headers(self) -> Dict[str, str]:
@@ -43,7 +50,16 @@ class ApiClient:
         return f"{self.base_url}/api/v1"
 
     def _log(self, message: str, color: str = RESET) -> None:
-        print(f"{color}{message}{RESET}")
+        if not self.verbose:
+            return
+        try:
+            print(f"{color}{message}{RESET}")
+        except Exception:
+            # Logging should never break the flow; ignore noisy IO errors.
+            try:
+                print(message)
+            except Exception:
+                pass
 
     def start_session(self) -> Optional[str]:
         url = f"{self._root}/session/start"
