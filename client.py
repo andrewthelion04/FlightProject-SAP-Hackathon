@@ -60,14 +60,19 @@ class ApiClient:
 
     def end_session(self) -> None:
         if not self.session_id:
-            return
+            return None
         url = f"{self._root}/session/end"
         try:
             response = self.session.post(url, headers=self._headers | {"SESSION-ID": self.session_id}, timeout=self.timeout)
             response.raise_for_status()
             self._log(f"[POST] /session/end -> {response.status_code}", GREEN)
+            try:
+                return response.json()
+            except Exception:
+                return response.text
         except Exception as exc:
             self._log(f"POST /session/end failed: {exc}", YELLOW)
+            return None
 
     def play_round(self, day: int, hour: int, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not self.session_id:

@@ -376,7 +376,7 @@ def run_matrix_baseline() -> None:
     """Run the new matrix-based runner with the baseline strategy."""
     strategy = BaselineStrategy()
     runner = SessionRunner(strategy=strategy)
-    runner.run()
+    runner.run(end_day=29, end_hour=23)
 
 
 if __name__ == "__main__":

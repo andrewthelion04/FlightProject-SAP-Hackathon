@@ -117,7 +117,7 @@ class SessionRunner:
                     purchase_payload[p.kit_type.passenger_key] += p.quantity
         return flight_loads_payload, purchase_payload
 
-    def run(self, max_global_hour: int = MAX_HOUR) -> None:
+    def run(self, max_global_hour: int = MAX_HOUR, end_day: int = 29, end_hour: int = 23) -> None:
         if not self.session_id:
             self.start_session()
         if not self.session_id:
@@ -126,7 +126,8 @@ class SessionRunner:
 
         response_cache: Dict = {}
         current_day, current_hour = 0, 0
-        while to_global_hour(current_day, current_hour) <= max_global_hour:
+        last_round_t = to_global_hour(end_day, end_hour)
+        while True:
             current_t = to_global_hour(current_day, current_hour)
             self.matrix.apply_movements_for_hour(current_t)
 
@@ -143,15 +144,19 @@ class SessionRunner:
             else:
                 payload["kitPurchasingOrders"] = None
 
+            print(f"Posting play_round for day={current_day} hour={current_hour}")
             response_cache = self.client.play_round(current_day, current_hour, payload) or {}
             updates = response_cache.get("flightUpdates", []) if isinstance(response_cache, dict) else []
             self._process_flight_updates(updates)
 
-            if current_day >= 30:
+            if current_t >= last_round_t:
                 break
+
             current_hour += 1
             if current_hour >= 24:
                 current_hour = 0
                 current_day += 1
 
-        self.end_session()
+        end_resp = self.client.end_session()
+        if end_resp is not None:
+            print("Session end response:", end_resp)
