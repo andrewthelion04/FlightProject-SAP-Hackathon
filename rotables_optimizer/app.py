@@ -4,6 +4,7 @@ This script wires together the data loader, stock coordinator, strategy, and
 API client. It is intentionally verbose to make the control flow easy to follow.
 """
 
+import argparse
 import sys
 import types
 from pathlib import Path
@@ -28,10 +29,51 @@ from rotables_optimizer.infra.game_api import GameApiClient
 from rotables_optimizer.engine.stock_coordinator import StockCoordinator
 from rotables_optimizer.engine.simulation_state import SimulationState
 from rotables_optimizer.engine.strategy import BalancedDispatchStrategy
+from rotables_optimizer.engine.strategy_aggressive import AggressiveStrategy
+from rotables_optimizer.engine.strategy_conservative import ConservativeStrategy
+from rotables_optimizer.engine.strategy_capacity_guard import CapacityGuardStrategy
+from rotables_optimizer.engine.strategy_hub_priority import HubPriorityStrategy
+from rotables_optimizer.engine.strategy_outstation_support import OutstationSupportStrategy
+from rotables_optimizer.engine.strategy_lean_buffers import LeanBuffersStrategy
+from rotables_optimizer.engine.strategy_high_economy import HighEconomyStrategy
+from rotables_optimizer.engine.strategy_no_overflow import NoOverflowStrategy
+from rotables_optimizer.engine.strategy_no_purchase import NoPurchaseStrategy
+from rotables_optimizer.engine.strategy_progressive_purchase import ProgressivePurchaseStrategy
+from rotables_optimizer.engine.strategy_ramp_loads import RampLoadsStrategy
+from rotables_optimizer.engine.strategy_late_game_push import LateGamePushStrategy
+from rotables_optimizer.engine.strategy_progressive_outstation import ProgressiveOutstationStrategy
 
 
-def run():
+STRATEGY_REGISTRY = {
+    "balanced": BalancedDispatchStrategy,
+    "aggressive": AggressiveStrategy,
+    "conservative": ConservativeStrategy,
+    "capacity_guard": CapacityGuardStrategy,
+    "hub_priority": HubPriorityStrategy,
+    "outstation_support": OutstationSupportStrategy,
+    "lean_buffers": LeanBuffersStrategy,
+    "high_economy": HighEconomyStrategy,
+    "no_overflow": NoOverflowStrategy,
+    "no_purchase": NoPurchaseStrategy,
+    "progressive_purchase": ProgressivePurchaseStrategy,
+    "ramp_loads": RampLoadsStrategy,
+    "late_game_push": LateGamePushStrategy,
+    "progressive_outstation": ProgressiveOutstationStrategy,
+}
+
+
+def run(argv=None):
+    parser = argparse.ArgumentParser(description="Run rotables optimizer with a selectable strategy.")
+    parser.add_argument(
+        "--strategy",
+        default="balanced",
+        choices=sorted(STRATEGY_REGISTRY.keys()),
+        help="Which strategy to use for this session.",
+    )
+    args = parser.parse_args(argv)
+
     print("=== ROTABLES ENGINE START ===")
+    print(f"[INFO] Using strategy: {args.strategy}")
 
     loader = DatasetLoader()
     airports = loader.load_airport_profiles()
@@ -42,7 +84,8 @@ def run():
     sim_state.aircraft_capacities = aircraft_caps
 
     api = GameApiClient()
-    strategy = BalancedDispatchStrategy(stock, aircraft_caps)
+    strategy_cls = STRATEGY_REGISTRY[args.strategy]
+    strategy = strategy_cls(stock, aircraft_caps)
 
     print("[INFO] Starting or resuming session...")
     api.start_session()

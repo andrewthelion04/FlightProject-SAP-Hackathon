@@ -75,3 +75,51 @@ class DatasetLoader:
                     "economy": int(row["economy_kits_capacity"]),
                 }
         return capacities
+
+    # ------------------------------------------------------------
+    # Flight plan stats (frequency / distance)
+    # ------------------------------------------------------------
+    def load_flight_plan_stats(self):
+        """
+        Parse flight_plan.csv to build lightweight priors:
+        - freq_by_origin: weekly departures per origin
+        - risk_by_origin: freq * avg_distance (proxy for penalty exposure)
+        - route_distance: distance per (origin, dest)
+        """
+        freq_by_origin: Dict[str, int] = {}
+        total_dist_by_origin: Dict[str, int] = {}
+        route_distance: Dict[tuple, int] = {}
+
+        path = self.data_root / "flight_plan.csv"
+        if not path.exists():
+            return {
+                "freq_by_origin": freq_by_origin,
+                "risk_by_origin": {},
+                "route_distance": route_distance,
+            }
+
+        with open(path, newline="") as handle:
+            reader = csv.DictReader(handle, delimiter=";")
+            for row in reader:
+                origin = row["depart_code"]
+                dest = row["arrival_code"]
+                distance = int(float(row.get("distance_km", 0)))
+                route_distance[(origin, dest)] = distance
+
+                # Count departures per week based on day flags.
+                weekly = sum(int(row.get(day, 0)) for day in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
+                freq_by_origin[origin] = freq_by_origin.get(origin, 0) + weekly
+                total_dist_by_origin[origin] = total_dist_by_origin.get(origin, 0) + weekly * distance
+
+        risk_by_origin: Dict[str, float] = {}
+        for origin, freq in freq_by_origin.items():
+            if freq == 0:
+                continue
+            avg_dist = total_dist_by_origin.get(origin, 0) / freq
+            risk_by_origin[origin] = avg_dist * freq  # proxy exposure
+
+        return {
+            "freq_by_origin": freq_by_origin,
+            "risk_by_origin": risk_by_origin,
+            "route_distance": route_distance,
+        }
