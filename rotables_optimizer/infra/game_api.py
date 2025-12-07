@@ -6,8 +6,8 @@ import requests
 
 from rotables_optimizer.domain.contracts import RoundInstruction, RoundOutcome
 
-API_ROOT = "http://127.0.0.1:8080/api/v1"
-DEFAULT_API_KEY = "6e083c01-eeac-476c-8b37-546150ec10c6"
+API_ROOT = "https://hackaton2025-lsac-eval.cfapps.eu12.hana.ondemand.com/api/v1"
+DEFAULT_API_KEY = "a0779d29-b372-45b2-b4ec-32f782ae16c3"
 
 
 class GameApiClient:
