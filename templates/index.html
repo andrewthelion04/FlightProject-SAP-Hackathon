@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rotables Simulation Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+</head>
+<body>
+    <div id="welcomeScreen" class="welcome">
+        <div class="welcome-card">
+            <p class="eyebrow">SAP Hackathon | Rotables</p>
+            <h1>Welcome to the Flight Kit Simulator</h1>
+            <p class="lede">Run the optimizer, balance cost vs. customer satisfaction, and monitor live outcomes. Start below to enter the dashboard.</p>
+            <div class="welcome-actions">
+                <button id="enterAppBtn" class="primary large">Start Application</button>
+                <p class="muted small">You can adjust the economic approach once inside the dashboard.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="is-hidden">
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">SAP Hackathon | Rotables</p>
+                <h1>Flight Kit Simulation</h1>
+                <p class="lede">Launch and monitor the end-to-end strategy run. Live purchases, costs, and progress are pulled directly from the optimizer.</p>
+            </div>
+            <div class="session-meta">
+                <p class="label">Session</p>
+                <p id="sessionId">{{ status.session_id or "not started" }}</p>
+                <p class="label muted">API key driven session</p>
+            </div>
+        </header>
+
+        <main class="layout">
+            <section class="card span-2 roomy">
+                <div class="card-header stacked">
+                    <div>
+                        <p class="eyebrow">Control</p>
+                        <h2>Simulation Controls</h2>
+                        <p class="muted small">Trigger a full 30-day run, tune the approach, and monitor health.</p>
+                    </div>
+                    <div class="button-row wrap">
+                        <button id="startBtn" class="primary">Start Simulation</button>
+                        <button id="resetBtn" class="ghost">Reset</button>
+                    </div>
+                </div>
+                <div class="slider-block">
+                    <div class="slider-head">
+                        <div>
+                            <p class="eyebrow">Economic Approach</p>
+                            <h3>Socialist <-> Capitalist</h3>
+                        </div>
+                        <div class="pill-group">
+                            <span id="selectedStrategy" class="pill">strategy</span>
+                        </div>
+                    </div>
+                    <div class="slider-labels">
+                        <span>Socialist</span>
+                        <span>Capitalist</span>
+                    </div>
+                    <input type="range" id="approachSlider" min="0" max="100" value="50" aria-label="Economic approach slider" />
+                    <p id="approachDescriptor" class="muted small">Balancing cost efficiency and satisfaction.</p>
+                </div>
+                <div id="alertArea" class="alert hidden"></div>
+                <div class="progress-row">
+                    <div class="progress-meta">
+                        <p class="muted">Status</p>
+                        <p id="runStatus">Idle</p>
+                    </div>
+                    <div class="progress-meta">
+                        <p class="muted">Day / Hour</p>
+                        <p><span id="dayVal">{{ status.progress.day }}</span> / <span id="hourVal">{{ status.progress.hour }}</span></p>
+                    </div>
+                    <div class="progress-meta">
+                        <p class="muted">Complete</p>
+                        <p><span id="percentVal">{{ status.progress.percent_complete }}</span>%</p>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div id="progressFill" style="width: {{ status.progress.percent_complete }}%;"></div>
+                </div>
+                <div class="totals">
+                    <div>
+                        <p class="muted">Step</p>
+                        <p><span id="stepVal">{{ status.progress.step }}</span>/<span id="stepTotal">{{ status.progress.total_steps }}</span></p>
+                    </div>
+                    <div>
+                        <p class="muted">Final Score (cumulative cost)</p>
+                        <p id="scoreVal">{{ status.final_score }}</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card tall">
+                <div class="card-header">
+                    <div>
+                        <p class="eyebrow">Live Feed</p>
+                        <h2>Latest Events</h2>
+                    </div>
+                </div>
+                <ul id="eventList" class="event-list">
+                    {% for evt in status.events %}
+                    <li>
+                        <div class="event-meta">
+                            <span class="pill">Day {{ evt.day }} / H{{ evt.hour }}</span>
+                            <span class="muted">Hourly cost</span>
+                            <strong>{{ evt.hourly_cost }}</strong>
+                        </div>
+                        <p>Purchase: FC {{ evt.purchase.first_class }}, BC {{ evt.purchase.business_class }}, PE {{ evt.purchase.premium_economy }}, EC {{ evt.purchase.economy }}</p>
+                        <p class="muted">Cumulative: {{ evt.cumulative_cost }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+
+            <section class="card tall">
+                <div class="card-header">
+                    <div>
+                        <p class="eyebrow">Summary</p>
+                        <h2>Daily Purchases & Costs</h2>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>First</th>
+                                <th>Business</th>
+                                <th>Premium</th>
+                                <th>Economy</th>
+                                <th>Daily Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dailyTableBody">
+                            {% for d in status.daily %}
+                            <tr>
+                                <td>{{ d.day }}</td>
+                                <td>{{ d.purchases.first_class }}</td>
+                                <td>{{ d.purchases.business_class }}</td>
+                                <td>{{ d.purchases.premium_economy }}</td>
+                                <td>{{ d.purchases.economy }}</td>
+                                <td>{{ d.cost }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card span-2 roomy">
+                <div class="card-header">
+                    <div>
+                        <p class="eyebrow">Status Area</p>
+                        <h2>Log Stream</h2>
+                    </div>
+                </div>
+                <div id="logStream" class="log-stream">
+                    {% for line in status.logs %}
+                    <p>{{ line }}</p>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        window.initialStatus = {{ status | tojson | safe }};
+        window.strategyOptions = {{ strategies | tojson | safe }};
+        window.strategyScale = {{ strategy_scale | tojson | safe }};
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
