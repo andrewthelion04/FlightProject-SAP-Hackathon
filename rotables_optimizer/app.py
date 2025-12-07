@@ -38,6 +38,11 @@ from rotables_optimizer.engine.strategy_lean_buffers import LeanBuffersStrategy
 from rotables_optimizer.engine.strategy_high_economy import HighEconomyStrategy
 from rotables_optimizer.engine.strategy_no_overflow import NoOverflowStrategy
 from rotables_optimizer.engine.strategy_no_purchase import NoPurchaseStrategy
+from rotables_optimizer.engine.strategy_progressive_purchase import ProgressivePurchaseStrategy
+from rotables_optimizer.engine.strategy_ramp_loads import RampLoadsStrategy
+from rotables_optimizer.engine.strategy_late_game_push import LateGamePushStrategy
+from rotables_optimizer.engine.strategy_progressive_outstation import ProgressiveOutstationStrategy
+from rotables_optimizer.engine.strategy_cost_aware import CostAwareStrategy
 
 
 STRATEGY_REGISTRY = {
@@ -51,6 +56,11 @@ STRATEGY_REGISTRY = {
     "high_economy": HighEconomyStrategy,
     "no_overflow": NoOverflowStrategy,
     "no_purchase": NoPurchaseStrategy,
+    "progressive_purchase": ProgressivePurchaseStrategy,
+    "ramp_loads": RampLoadsStrategy,
+    "late_game_push": LateGamePushStrategy,
+    "progressive_outstation": ProgressiveOutstationStrategy,
+    "cost_aware": CostAwareStrategy,
 }
 
 
