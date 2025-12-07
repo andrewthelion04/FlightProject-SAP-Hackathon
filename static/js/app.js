@@ -220,7 +220,7 @@ async function startSimulation() {
     }
     renderStatus(json);
     if (!state.pollHandle) {
-      state.pollHandle = window.setInterval(fetchStatus, 1200);
+      state.pollHandle = window.setInterval(fetchStatus, 400);
     }
   } catch (err) {
     startBtn.disabled = false;
@@ -249,7 +249,7 @@ function init() {
   renderStatus(state.status);
   renderApproach(state.approach);
   if (!state.pollHandle) {
-    state.pollHandle = window.setInterval(fetchStatus, 1200);
+    state.pollHandle = window.setInterval(fetchStatus, 400);
   }
 
   startBtn.addEventListener("click", startSimulation);
