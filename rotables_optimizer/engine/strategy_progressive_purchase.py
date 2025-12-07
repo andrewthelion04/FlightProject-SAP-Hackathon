@@ -1,4 +1,4 @@
-"""Strategy variant: progressive ramp + outstation protection + cabin prioritization."""
+"""Strategy variant: starts lean on purchases and ramps up over time."""
 
 from typing import Dict
 
@@ -7,29 +7,26 @@ from rotables_optimizer.engine.simulation_state import SimulationState
 from rotables_optimizer.engine.stock_coordinator import StockCoordinator
 
 
-class ProgressiveOutstationStrategy:
+class ProgressivePurchaseStrategy:
     """
-    - Early: lean purchases, conservative loads.
-    - Late: ramps up purchases/loads via exponential factor.
-    - Protects outstations with higher minima.
-    - Prioritizes higher-penalty cabins when reserving/limiting stock.
+    Early hours: minimal buying and slightly smaller buffers.
+    Late game: gradually increases buffers and purchase volumes as the horizon approaches.
+    Prioritizes higher-penalty cabins when deciding reserves and margins.
     """
 
-    def __init__(self, stock_coordinator: StockCoordinator, aircraft_capacities: Dict, flight_plan_stats=None):
+    def __init__(self, stock_coordinator: StockCoordinator, aircraft_capacities: Dict):
         self.stock = stock_coordinator
         self.aircraft_capacities = aircraft_capacities
         self.last_kits_per_flight: Dict = {}
+        # Importance derived mainly from kitCost (weight has minor influence):
+        # first: 200 + 0.05*5 = 200.25, business: 150+0.05*3=150.15,
+        # premium: 100+0.05*2.5=100.125, economy: 50+0.05*1.5=50.075
+        # Normalize relative to economy (≈50) -> weights ~4.0, 3.0, 2.0, 1.0
         self.priority_weight = {
             "first": 4.0,
             "business": 3.0,
             "premium_economy": 2.0,
             "economy": 1.0,
-        }
-        # Flight plan influence disabled (reset to empty)
-        self.flight_plan_stats = {
-            "freq_by_origin": {},
-            "risk_by_origin": {},
-            "route_distance": {},
         }
 
     def plan_round(self, day: int, hour: int, state: SimulationState) -> RoundInstruction:
@@ -55,14 +52,19 @@ class ProgressiveOutstationStrategy:
         return RoundInstruction(day=day, hour=hour, load_plans=load_plans, procurement=procurement)
 
     def _progress_ratio(self, day: int, hour: int) -> float:
+        # Normalize timeline 0..1 over 30 days (720 hours)
         total_hours = 30 * 24
         current = day * 24 + hour
         return max(0.0, min(1.0, current / total_hours))
 
     def _exp_ramp(self, day: int, hour: int, steepness: float = 3.0) -> float:
+        """
+        Returns a slow-growing 0..1 factor that stays low for most of the run
+        and rises sharply near the end (avoids early overload).
+        """
+        p = self._progress_ratio(day, hour)
         import math
 
-        p = self._progress_ratio(day, hour)
         num = math.exp(steepness * p) - 1.0
         den = math.exp(steepness) - 1.0
         return max(0.0, min(1.0, num / den))
@@ -98,31 +100,33 @@ class ProgressiveOutstationStrategy:
         dest_cap_economy = getattr(destination_meta, "capacity_economy", 10**9)
 
         forecast = self._forecast_origin_demand(origin, state, exclude_flight_id=evt.flight_id)
-        ramp = self._exp_ramp(day, hour, steepness=3.0)
+        progress = self._progress_ratio(day, hour)
+        ramp = self._exp_ramp(day, hour, steepness=3.2)
 
-        reserve_scale_hub = 1.0 + 0.18 * ramp
-        reserve_scale_out = 1.0 + 0.14 * ramp
+        # Early -> smaller reserves; late -> larger reserves (exponential ramp).
+        reserve_scale_hub = 1.0 + 0.3 * ramp
+        reserve_scale_out = 1.0 + 0.25 * ramp
 
-        def apply_priority_guard(value: int, cabin: str, pax_for_cabin: int) -> int:
-            factor = 1.0 + 0.12 * self.priority_weight[cabin]
-            pressure = min(0.5, 0.03 * pax_for_cabin)
-            return max(0, int(value * (1 - pressure) / factor))
+        def apply_priority_guard(value: int, cabin: str) -> int:
+            # Higher weight -> allow smaller reserve (ship more of that cabin).
+            factor = 1.0 + 0.18 * self.priority_weight[cabin]
+            return max(0, int(value / factor))
 
         if origin == "HUB1":
-            reserve_first = apply_priority_guard(int(forecast.first_class * 1.1 * reserve_scale_hub), "first", pax.first_class)
-            reserve_business = apply_priority_guard(int(forecast.business_class * 1.1 * reserve_scale_hub), "business", pax.business_class)
-            reserve_premium = apply_priority_guard(int(forecast.premium_economy * 1.05 * reserve_scale_hub), "premium_economy", pax.premium_economy)
+            reserve_first = apply_priority_guard(int(forecast.first_class * 1.1 * reserve_scale_hub), "first")
+            reserve_business = apply_priority_guard(int(forecast.business_class * 1.1 * reserve_scale_hub), "business")
+            reserve_premium = apply_priority_guard(int(forecast.premium_economy * 1.05 * reserve_scale_hub), "premium_economy")
             reserve_economy = int(forecast.economy * 1.05 * reserve_scale_hub)
         else:
-            base_first = min(max(5, int(origin_stock.first_class * 0.24)), 85)
-            base_business = min(max(7, int(origin_stock.business_class * 0.24)), 105)
-            base_premium = min(max(7, int(origin_stock.premium_economy * 0.24)), 105)
-            base_economy = min(max(60, int(origin_stock.economy * 0.36)), 380)
+            base_first = min(max(3, int(origin_stock.first_class * 0.18)), 55)
+            base_business = min(max(4, int(origin_stock.business_class * 0.18)), 75)
+            base_premium = min(max(4, int(origin_stock.premium_economy * 0.18)), 75)
+            base_economy = min(max(40, int(origin_stock.economy * 0.30)), 280)
 
-            reserve_first = apply_priority_guard(max(base_first, int(forecast.first_class * (1.0 + 0.12 * ramp))), "first", pax.first_class)
-            reserve_business = apply_priority_guard(max(base_business, int(forecast.business_class * (1.0 + 0.12 * ramp))), "business", pax.business_class)
-            reserve_premium = apply_priority_guard(max(base_premium, int(forecast.premium_economy * (1.0 + 0.12 * ramp))), "premium_economy", pax.premium_economy)
-            reserve_economy = max(base_economy, int(forecast.economy * (1.02 + 0.16 * ramp)))
+            reserve_first = apply_priority_guard(max(base_first, int(forecast.first_class * (1.0 + 0.15 * ramp))), "first")
+            reserve_business = apply_priority_guard(max(base_business, int(forecast.business_class * (1.0 + 0.15 * ramp))), "business")
+            reserve_premium = apply_priority_guard(max(base_premium, int(forecast.premium_economy * (1.0 + 0.15 * ramp))), "premium_economy")
+            reserve_economy = max(base_economy, int(forecast.economy * (1.0 + 0.2 * ramp)))
 
         reserve_first = min(max(0, reserve_first), origin_stock.first_class)
         reserve_business = min(max(0, reserve_business), origin_stock.business_class)
@@ -139,9 +143,10 @@ class ProgressiveOutstationStrategy:
         load_premium = min(pax.premium_economy, available_premium, capacity["premium"])
         load_economy = min(pax.economy, available_economy, capacity["economy"])
 
-        base_margin = int(30 + 12 * ramp)
+        base_margin = int(30 + 20 * ramp)  # 30 early -> 50 late
 
         def respect_destination_capacity(current, limit, proposed, cabin):
+            # Lower margin for higher-priority cabins; never below 10.
             margin = max(10, int(base_margin - 6 * self.priority_weight.get(cabin, 1.0)))
             free_space = limit - current - margin
             if free_space <= 0:
@@ -178,29 +183,30 @@ class ProgressiveOutstationStrategy:
         cap_premium = getattr(hub_meta, "capacity_premium", 10**9)
         cap_economy = getattr(hub_meta, "capacity_economy", 10**9)
 
-        ramp = self._exp_ramp(day, hour, steepness=3.0)
+        ramp = self._exp_ramp(day, hour, steepness=3.2)
 
         buy_first = buy_business = buy_premium = buy_economy = 0
 
-        econ_low_ratio = 0.30 + 0.08 * ramp    # 0.30 -> 0.38
-        econ_high_ratio = 0.55 + 0.10 * ramp   # 0.55 -> 0.65
+        econ_low_ratio = 0.24 + 0.12 * ramp     # 0.24 -> 0.36
+        econ_high_ratio = 0.52 + 0.18 * ramp    # 0.52 -> 0.70
 
         low_economy = int(cap_economy * econ_low_ratio)
         high_economy = int(cap_economy * econ_high_ratio)
 
         if hub_stock.economy < low_economy:
-            desired = int(4500 + 7500 * ramp)  # slightly more to avoid shortages
+            desired = int(3000 + 9000 * ramp)  # slow ramp; most buying near the end
             free_space = max(0, high_economy - hub_stock.economy)
             buy_economy = min(desired, free_space)
 
-        if hub_stock.first_class < 170 + int(80 * ramp):
+        # Higher-priority cabins trigger earlier and slightly larger buys.
+        if hub_stock.first_class < 140 + int(110 * ramp):
             buy_first = min(140, max(0, cap_first - hub_stock.first_class - 10))
 
-        if hub_stock.business_class < 250 + int(80 * ramp):
-            buy_business = min(150, max(0, cap_business - hub_stock.business_class - 10))
+        if hub_stock.business_class < 210 + int(110 * ramp):
+            buy_business = min(150, max(0, cap_business - hub_stock.business_class - 12))
 
-        if hub_stock.premium_economy < 320 + int(80 * ramp):
-            buy_premium = min(150, max(0, cap_premium - hub_stock.premium_economy - 10))
+        if hub_stock.premium_economy < 250 + int(110 * ramp):
+            buy_premium = min(150, max(0, cap_premium - hub_stock.premium_economy - 12))
 
         return CabinKits(
             first_class=int(buy_first),
